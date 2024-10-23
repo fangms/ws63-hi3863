@@ -1,0 +1,41 @@
+#===============================================================================
+# @brief    Kconfig file.
+# Copyright (c) @CompanyNameMagicTag 2023-2023. All rights reserved.
+#===============================================================================
+config SAMPLE_SUPPORT_STA_SAMPLE
+    bool "Support WIFI STA Sample"
+
+config SAMPLE_SUPPORT_SOFTAP_SAMPLE
+    bool "Support WIFI SoftAP Sample."
+    
+config SAMPLE_SUPPORT_UDP_CLIENT_SAMPLE
+    bool "Support UDP Client Sample."
+
+config SAMPLE_SUPPORT_GATEWAY63
+    bool "Support Gateway63 Sample."
+
+config SLE_UART_BUS
+    int
+    prompt "Set the UART BUS of the currrent sample."
+    default 0
+    depends on SAMPLE_SUPPORT_UDP_CLIENT_SAMPLE || SAMPLE_SUPPORT_GATEWAY63
+    help
+        This option means the UART BUS of the currrent sample.
+
+config UART_TXD_PIN
+    int
+    prompt "Choose UART TXD pin."
+    depends on SAMPLE_SUPPORT_UDP_CLIENT_SAMPLE || SAMPLE_SUPPORT_GATEWAY63
+    default 13
+
+config UART_RXD_PIN
+    int
+    prompt "Choose UART RXD pin."
+    depends on SAMPLE_SUPPORT_UDP_CLIENT_SAMPLE || SAMPLE_SUPPORT_GATEWAY63
+    default 12
+
+config CONFIG_SAMPLE_SUPPORT_BLE_UART_SERVER
+    bool
+    prompt "Choose SAMPLE_SUPPORT_BLE_UART_SERVER."
+    depends on SAMPLE_SUPPORT_UDP_CLIENT_SAMPLE || SAMPLE_SUPPORT_GATEWAY63
+    default true  

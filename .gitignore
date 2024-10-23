@@ -1,0 +1,7 @@
+.deveco/**
+.vscode/**
+output
+build/script
+interim_binary/ws63/libs/wifi/ws63-liteos-app
+
+
