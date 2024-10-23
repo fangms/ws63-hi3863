@@ -25,6 +25,8 @@
 #define WLAN_HILINK_SSID_LEN 33
 #define WLAN_HILINK_PWD_LEN 65
 #define WLAN_HILINK_MAC_LEN 6
+#define WLAN_OPENVALLEY_WIFI_LEN 32
+#define WLAN_OPENVALLEY_PWD_LEN 64
 /* 基础类型无需在此文件中定义，直接引用即可，对应app.json中的sample0 */
 
 /* 普通结构体，对应app.json中的sample1 */
@@ -144,12 +146,14 @@ typedef struct {
 } hilink_connect_info_t;
 
 typedef struct {
-    uint8_t ssid[WLAN_HILINK_SSID_LEN];
-    uint8_t passwd[WLAN_HILINK_PWD_LEN];
+    uint8_t wifi[WLAN_OPENVALLEY_WIFI_LEN];
+    uint8_t passwd[WLAN_OPENVALLEY_PWD_LEN];
+    uint32_t encrypt;    /* 用来表示WiFi是否有加密*/
 } openvalley_wifi_info_t;
 
 typedef struct {
-    uint8_t url[WLAN_HILINK_PWD_LEN];
+    uint8_t ip[WLAN_OPENVALLEY_WIFI_LEN];
+    uint32_t port;
 } openvalley_server_info_t;
 
 #endif /* __NV_COMMON_CFG_H__ */

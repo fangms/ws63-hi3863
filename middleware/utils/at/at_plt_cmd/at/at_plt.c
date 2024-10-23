@@ -1470,21 +1470,21 @@ at_ret_t get_wifi_info(void)
 
     read_value = (openvalley_wifi_info_t *) osal_vmalloc(key_len);
     if(read_value == NULL) {
-        osal_printk("[ERROR]:sle read_customize_nv_data osal_vmalloc fail %d\r\n", __LINE__);
+        osal_printk("[ERROR]:get_wifi_info osal_vmalloc fail %d\r\n", __LINE__);
         return AT_RET_SYNTAX_ERROR;
     }
 
 #if defined(CONFIG_MIDDLEWARE_SUPPORT_NV)
     if (uapi_nv_read(NV_ID_OPENVALLEY_WIFI_INFO, key_len, &real_len, (uint8_t *)read_value) != ERRCODE_SUCC) {
-        osal_printk("[ERROR]:bt_at_sle_get_addr_cmd uapi_nv_read fail %d\r\n", __LINE__);
+        osal_printk("[ERROR]:get_wifi_info uapi_nv_read fail %d\r\n", __LINE__);
         osal_vfree(read_value);
         read_value = NULL;
         return AT_RET_SYNTAX_ERROR;
     }
 #endif
 
-    osal_printk("[NV]:ssid:%s \r\n", read_value->ssid);
-    osal_printk("[NV]:passwd:%s \r\n", read_value->passwd);
+    osal_printk("[NV]:wifi=%s,passwd=%s,encrypt=%d\r\n", read_value->wifi, 
+                    read_value->passwd, read_value->encrypt);
 
     if (read_value != NULL) {
         osal_vfree(read_value);
@@ -1500,34 +1500,114 @@ at_ret_t set_wifi_info(const openValley_wifi_args_t *args)
     uint16_t real_len = 0;
     openvalley_wifi_info_t *read_value = NULL;
 
-    osal_printk("[NV]:wifi:%s, passwd:%s \r\n", args->wifi, args->passwd);
+    osal_printk("[NV]:AT:wifi:%s, passwd:%s, encrypt=%d\r\n", args->wifi, args->passwd, args->encrypt);
 
     read_value = (openvalley_wifi_info_t *) osal_vmalloc(key_len);
     if(read_value == NULL) {
-        osal_printk("[ERROR]:sle read_customize_nv_data osal_vmalloc fail %d\r\n", __LINE__);
+        osal_printk("[ERROR]:set_wifi_info osal_vmalloc fail %d\r\n", __LINE__);
         return AT_RET_SYNTAX_ERROR;
     }
 
 #if defined(CONFIG_MIDDLEWARE_SUPPORT_NV)
     if (uapi_nv_read(NV_ID_OPENVALLEY_WIFI_INFO, key_len, &real_len, (uint8_t *)read_value) != ERRCODE_SUCC) {
-        osal_printk("[ERROR]:bt_at_sle_get_addr_cmd uapi_nv_read fail %d\r\n", __LINE__);
+        osal_printk("[ERROR]:set_wifi_info uapi_nv_read fail %d\r\n", __LINE__);
         osal_vfree(read_value);
         read_value = NULL;
         return AT_RET_SYNTAX_ERROR;
     }
 #endif
 
-    osal_printk("[NV]:ssid:%s \r\n", read_value->ssid);
-    osal_printk("[NV]:passwd:%s \r\n", read_value->passwd);
+    osal_printk("[NV]: Old:wifi=%s,passwd=%s,encrypt=%d\r\n", read_value->wifi, 
+                    read_value->passwd, read_value->encrypt);
 
-    if (memcpy_s(read_value->ssid, WLAN_HILINK_SSID_LEN, args->wifi, strlen(args->wifi)) != EOK) {
+    memset_s(read_value->wifi, WLAN_OPENVALLEY_WIFI_LEN, 0, WLAN_OPENVALLEY_WIFI_LEN);
+    if (memcpy_s(read_value->wifi, WLAN_OPENVALLEY_WIFI_LEN, args->wifi, strlen(args->wifi)) != EOK) {
         return AT_RET_SYNTAX_ERROR;
     };
-    if (memcpy_s(read_value->passwd, WLAN_HILINK_PWD_LEN, args->passwd, strlen(args->passwd)) != EOK) {
+    memset_s(read_value->passwd, WLAN_OPENVALLEY_PWD_LEN, 0, WLAN_OPENVALLEY_PWD_LEN);
+    if (memcpy_s(read_value->passwd, WLAN_OPENVALLEY_PWD_LEN, args->passwd, strlen(args->passwd)) != EOK) {
         return AT_RET_SYNTAX_ERROR;
     };
-    
+    read_value->encrypt = args->encrypt;
+
     errcode_t nv_ret_value = uapi_nv_write(NV_ID_OPENVALLEY_WIFI_INFO, (uint8_t *)read_value, key_len);
+    if (nv_ret_value != ERRCODE_SUCC) {
+        osal_printk("[ERROR]write nv fail! %d, ret:%x \r\n", __LINE__, nv_ret_value);
+        osal_vfree(read_value);
+        read_value = NULL;
+        return nv_ret_value;
+    }
+
+    if (read_value != NULL) {
+        osal_vfree(read_value);
+        read_value = NULL;
+    }
+    return AT_RET_OK;
+}
+
+/* SLE Read CUSTOMIZE NV */
+at_ret_t get_server_info(void)
+{
+    uint16_t key_len = (uint16_t)sizeof(openvalley_server_info_t);
+    uint16_t real_len = 0;
+    openvalley_server_info_t *read_value = NULL;
+
+    read_value = (openvalley_server_info_t *) osal_vmalloc(key_len);
+    if(read_value == NULL) {
+        osal_printk("[ERROR]:get_server_info osal_vmalloc fail %d\r\n", __LINE__);
+        return AT_RET_SYNTAX_ERROR;
+    }
+
+#if defined(CONFIG_MIDDLEWARE_SUPPORT_NV)
+    if (uapi_nv_read(NV_ID_OPENVALLEY_SERVER_INFO, key_len, &real_len, (uint8_t *)read_value) != ERRCODE_SUCC) {
+        osal_printk("[ERROR]:get_server_info uapi_nv_read fail %d\r\n", __LINE__);
+        osal_vfree(read_value);
+        read_value = NULL;
+        return AT_RET_SYNTAX_ERROR;
+    }
+#endif
+
+    osal_printk("[NV]:server:%s:%d \r\n", read_value->ip, read_value->port);
+
+    if (read_value != NULL) {
+        osal_vfree(read_value);
+        read_value = NULL;
+    }
+    return AT_RET_OK;
+}
+
+at_ret_t set_server_info(const openValley_server_args_t *args)
+{
+    uint16_t key_len = (uint16_t)sizeof(openvalley_server_info_t); // 写NV SLE payload的长度
+    uint16_t real_len = 0;
+    openvalley_server_info_t *read_value = NULL;
+
+    osal_printk("[NV]:AT:server_ip:%s,server_port:%d\r\n", args->server_ip, args->server_port);
+
+    read_value = (openvalley_server_info_t *) osal_vmalloc(key_len);
+    if(read_value == NULL) {
+        osal_printk("[ERROR]:set_server_info osal_vmalloc fail %d\r\n", __LINE__);
+        return AT_RET_SYNTAX_ERROR;
+    }
+
+#if defined(CONFIG_MIDDLEWARE_SUPPORT_NV)
+    if (uapi_nv_read(NV_ID_OPENVALLEY_SERVER_INFO, key_len, &real_len, (uint8_t *)read_value) != ERRCODE_SUCC) {
+        osal_printk("[ERROR]:set_server_info uapi_nv_read fail %d\r\n", __LINE__);
+        osal_vfree(read_value);
+        read_value = NULL;
+        return AT_RET_SYNTAX_ERROR;
+    }
+#endif
+
+    osal_printk("[NV] Old:server_ip=%s,server_port=%d\r\n", read_value->ip, read_value->port);
+    memset_s(read_value->ip, WLAN_OPENVALLEY_WIFI_LEN, 0, WLAN_OPENVALLEY_WIFI_LEN);
+
+    if (memcpy_s(read_value->ip, WLAN_OPENVALLEY_WIFI_LEN, args->server_ip, strlen(args->server_ip)) != EOK) {
+        return AT_RET_SYNTAX_ERROR;
+    };
+    read_value->port = args->server_port;
+    
+    errcode_t nv_ret_value = uapi_nv_write(NV_ID_OPENVALLEY_SERVER_INFO, (uint8_t *)read_value, key_len);
     if (nv_ret_value != ERRCODE_SUCC) {
         osal_printk("[ERROR]write nv fail! %d, ret:%x \r\n", __LINE__, nv_ret_value);
         osal_vfree(read_value);

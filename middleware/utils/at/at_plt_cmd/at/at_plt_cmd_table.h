@@ -165,12 +165,16 @@ typedef struct {
 
 /* connect info NV配置结构 */
 typedef struct {
+    uint32_t para_map;
     const char *wifi;
     const char *passwd;
+    uint32_t    encrypt;    /* 用来表示WiFi是否有加密*/
 } openValley_wifi_args_t;
 
 typedef struct {
-    const char * server_url;
+    uint32_t para_map;
+    const char * server_ip;
+    uint32_t     server_port;
 } openValley_server_args_t;
 
 /* SET WIFI */
@@ -606,6 +610,46 @@ const at_para_parse_syntax_t license_syntax[] = {
     },
 };
 
+const at_para_parse_syntax_t wifi_syntax[] = {
+    {
+        .type = AT_SYNTAX_TYPE_STRING,
+        .attribute = AT_SYNTAX_ATTR_MAX_LENGTH,
+        .entry.string.max_length = 31,
+        .offset = offsetof(openValley_wifi_args_t, wifi)
+    },
+    {
+        .type = AT_SYNTAX_TYPE_STRING,
+        .attribute = AT_SYNTAX_ATTR_MAX_LENGTH,
+        .entry.string.max_length = 63,
+        .offset = offsetof(openValley_wifi_args_t, passwd)
+    },
+    {
+        .type = AT_SYNTAX_TYPE_INT,
+        .last = true,
+        .attribute = AT_SYNTAX_ATTR_AT_MIN_VALUE | AT_SYNTAX_ATTR_AT_MAX_VALUE,
+        .entry.int_range.min_val = 0,
+        .entry.int_range.max_val = 1,
+        .offset = offsetof(openValley_wifi_args_t, encrypt)
+    }
+};
+
+const at_para_parse_syntax_t server_syntax[] = {
+    {
+        .type = AT_SYNTAX_TYPE_STRING,
+        .attribute = AT_SYNTAX_ATTR_MAX_LENGTH,
+        .entry.string.max_length = 31,
+        .offset = offsetof(openValley_server_args_t, server_ip)
+    },
+    {
+        .type = AT_SYNTAX_TYPE_INT,
+        .last = true,
+        .attribute = AT_SYNTAX_ATTR_AT_MIN_VALUE | AT_SYNTAX_ATTR_AT_MAX_VALUE,
+        .entry.int_range.min_val = 0,
+        .entry.int_range.max_val = 65535,
+        .offset = offsetof(openValley_server_args_t, server_port)
+    }
+};
+
 const at_cmd_entry_t at_plt_cmd_parse_table[] = {
     {
         "NVREAD",
@@ -926,6 +970,26 @@ const at_cmd_entry_t at_plt_cmd_parse_table[] = {
         NULL,
         (at_set_func_t)save_license,
         NULL,
+        NULL,
+    },
+    {
+        "WIFI",
+        30,
+        0,
+        wifi_syntax,
+        NULL,
+        (at_set_func_t)set_wifi_info,
+        get_wifi_info,
+        NULL,
+    },
+    {
+        "SERVER",
+        31,
+        0,
+        server_syntax,
+        NULL,
+        (at_set_func_t)set_server_info,
+        get_server_info,
         NULL,
     },
 };
