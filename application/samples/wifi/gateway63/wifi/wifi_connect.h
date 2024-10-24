@@ -16,8 +16,10 @@
 #define CONFIG_WIFI_SSID            "test"          //test     // 要连接的WiFi 热点账号
 #define CONFIG_WIFI_PWD             "88888888"                        // 要连接的WiFi 热点密码
 
-int wifi_connect(const char *ssid, const char *psk);
+
+int wifi_connect_init(void);
+int wifi_connect(const char *ssid, const char *psk, uint8_t security);
 td_bool example_check_connect_status(td_void);
-td_s32 example_sta_function(const char *ssid, const char *psk);
+td_s32 example_sta_function(const char *ssid, const char *psk, uint8_t security);
 extern td_u8 g_wifi_state_while;
 #endif

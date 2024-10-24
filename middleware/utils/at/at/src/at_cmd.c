@@ -104,7 +104,7 @@ const at_cmd_entry_t* at_cmd_find_entry(char *str, uint16_t *offset)
 
     char *name = str + *offset;
     uint16_t name_len = at_cmd_get_name_length(name);
-    at_base_toupper(name, name_len);
+    // at_base_toupper(name, name_len);
     while (list != NULL) {
         for (uint32_t index = 0; index < list->len; index++) {
             if (list->table[index].name == NULL) { return NULL; }

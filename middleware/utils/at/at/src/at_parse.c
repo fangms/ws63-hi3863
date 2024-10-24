@@ -450,9 +450,9 @@ static at_ret_t at_parse_argument_assign_string(const at_parse_param_t *para_arr
 
     (void)at_parse_argument_prepare_string(*val, para_array->str_len + 1, para_array);
 
-    if ((syntax->attribute & AT_SYNTAX_ATTR_FIX_CASE) == 0) {
-        at_base_toupper(*val, para_array->str_len);
-    }
+    // if ((syntax->attribute & AT_SYNTAX_ATTR_FIX_CASE) == 0) {
+    //     at_base_toupper(*val, para_array->str_len);
+    // }
 
     return AT_RET_OK;
 }

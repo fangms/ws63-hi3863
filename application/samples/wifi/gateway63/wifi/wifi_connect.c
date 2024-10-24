@@ -179,12 +179,16 @@ td_bool example_check_dhcp_status(struct netif *netif_p, td_u32 *wait_count)
     return -1;
 }
 
-td_s32 example_sta_function(const char *ssid, const char *psk)
+td_s32 example_sta_function(const char *ssid, const char *psk, uint8_t security)
 {
     td_char ifname[WIFI_IFNAME_MAX_SIZE + 1] = "wlan0"; /* 创建的STA接口名 */
     wifi_sta_config_stru expected_bss = {0}; /* 连接请求信息 */
     struct netif *netif_p = TD_NULL;
     td_u32 wait_count = 0;
+
+    if(security == 0) {
+        expected_bss.security_type = WIFI_SEC_TYPE_OPEN;
+    }
 
     do {
         (void)osDelay(1); /* 1: 等待10ms后判断状态 */
@@ -232,7 +236,7 @@ td_s32 example_sta_function(const char *ssid, const char *psk)
     return 0;
 }
 
-int wifi_connect(const char *ssid, const char *psk)
+int wifi_connect_init(void)
 {
     /* 注册事件回调 */
     if (wifi_register_event_cb(&wifi_event_cb) != 0) {
@@ -253,7 +257,19 @@ int wifi_connect(const char *ssid, const char *psk)
     }
     PRINT("%s::STA enable succ.\r\n", WIFI_STA_SAMPLE_LOG);
 
-    if (example_sta_function(ssid, psk) != 0) {
+    return 0;
+}
+
+int wifi_connect(const char *ssid, const char *psk, uint8_t security)
+{
+
+    if(strlen((char *)ssid) == 0)
+    {
+        PRINT("%s:wifi ssid is null.\r\n", WIFI_STA_SAMPLE_LOG);
+        return -1;
+    }
+
+    if (example_sta_function(ssid, psk, security) != 0) {
         PRINT("%s::example_sta_function fail.\r\n", WIFI_STA_SAMPLE_LOG);
         return -1;
     }

@@ -56,6 +56,9 @@ int g_socket_handle;
 hi3863_wifi_info_t g_wifiInfo = {0};
 hi3863_server_info_t g_serverInfo = {0};
 
+measure_dis_msg_t g_msg_data = {0};
+unsigned long g_measure_dis_queue;
+
 static err_t gateway63_nvConfigRead(void)
 {
     uint16_t key_len = 0;
@@ -84,7 +87,7 @@ static err_t gateway63_nvConfigRead(void)
 #endif
     osal_printk("[NV]: Old:wifi=%s,passwd=%s,encrypt=%d\r\n", wifi_value->wifi, 
                     wifi_value->passwd, wifi_value->encrypt);
-    if (memcpy_s(g_wifiInfo.wifi, HI3863_OPENVALLEY_PWD_LEN, 
+    if (memcpy_s(g_wifiInfo.wifi, HI3863_OPENVALLEY_WIFI_LEN, 
                 wifi_value->wifi, strlen((char *)(wifi_value->wifi))) != EOK) {
         return -1;
     };
@@ -132,7 +135,7 @@ static err_t gateway63_nvConfigRead(void)
     return ERR_OK;
 }
 
-#if 0
+
 static err_t gateway63_saveWifiInfo(hi3863_wifi_info_t * wifiInfo)
 {
     uint16_t key_len = (uint16_t)sizeof(hi3863_wifi_info_t);
@@ -166,8 +169,8 @@ static err_t gateway63_saveWifiInfo(hi3863_wifi_info_t * wifiInfo)
     osal_printk("[NV]: Old:wifi=%s,passwd=%s,encrypt=%d\r\n", read_value->wifi, 
                     read_value->passwd, read_value->encrypt);
 
-    memset_s(read_value->wifi, HI3863_OPENVALLEY_PWD_LEN, 0, HI3863_OPENVALLEY_PWD_LEN);
-    if (memcpy_s(read_value->wifi, HI3863_OPENVALLEY_PWD_LEN, wifiInfo->wifi, strlen((char *)(wifiInfo->wifi))) != EOK) {
+    memset_s(read_value->wifi, HI3863_OPENVALLEY_WIFI_LEN, 0, HI3863_OPENVALLEY_WIFI_LEN);
+    if (memcpy_s(read_value->wifi, HI3863_OPENVALLEY_WIFI_LEN, wifiInfo->wifi, strlen((char *)(wifiInfo->wifi))) != EOK) {
         return -1;
     };
     memset_s(read_value->passwd, HI3863_OPENVALLEY_PWD_LEN, 0, HI3863_OPENVALLEY_PWD_LEN);
@@ -241,7 +244,37 @@ static err_t gateway63_saveServerInfo(hi3863_server_info_t *serverInfo)
     }
     return ERR_OK;
 }
-#endif
+
+
+static errcode_t hi3863_msg_queue_init(void)
+{
+
+    if (osal_msg_queue_create("measure_dis_queue", MEASURE_DIS_MSG_QUEUE_SIZE,
+                              &g_measure_dis_queue, 0, sizeof(measure_dis_msg_t)) != ERRCODE_SUCC) {
+        osal_printk("osal_queue_init init failed \r\n");
+        return ERRCODE_FAIL;
+    }
+
+    return ERRCODE_SUCC;
+}
+
+void hi3863_msg_queue_send_msg(const void *data, uint16_t length, hi3863_msg_type_e msgId)
+{
+    osal_printk("hi3863_msg_queue_send_msg:%d.\r\n", msgId);
+
+        measure_dis_msg_t msg_data = { 0 };
+        msg_data.type = msgId;
+        if(length > 0) {
+            void* buffer_cpy = osal_vmalloc(length);
+            if (memcpy_s(buffer_cpy, length, data, length) != EOK) {
+                osal_vfree(buffer_cpy);
+                return;
+            }
+            msg_data.data = (uint8_t *)buffer_cpy;
+            msg_data.data_len = length;
+        }
+        osal_msg_queue_write_copy(g_measure_dis_queue, (void *)&msg_data, sizeof(measure_dis_msg_t), 0);
+}
 
 err_t socket_connect(void)
 {
@@ -355,11 +388,13 @@ static void uart_init_config(void)
 
 }
 #define SLE_UART_SERVER_LOG                 "[uart http post task]"
+
 // 串口接收中断，开启中断标志
 static void sle_uart_server_read_int_handler(const void *buffer, uint16_t length, bool error)
 {
     unused(error);
     memcpy((char *)g_app_uart_rx_buff,buffer,length);
+    hi3863_msg_queue_send_msg(buffer, length, HI3863_MSG_E_REPORT);
     osal_printk("%s buffer = %s length = %d\r\n", SLE_UART_SERVER_LOG, buffer, length);
     IS_READ_DATA_FLAG = 1;
 }
@@ -382,6 +417,7 @@ void uart_task(void)
     }
 }
 
+#if 0
 int gateway63_sample_task(void *param)
 {
     param = param;
@@ -413,24 +449,163 @@ int gateway63_sample_task(void *param)
     }
     return 0;
 }
+#endif
+
+err_t hi3863_post_to_server(uint8_t *data, uint16_t data_len)
+{
+    err_t err;
+ 
+    if(data_len < 20)
+    {
+        printf("uart_rx_data length<20 \r\n");
+        return -1;
+    }
+
+    socket_connect();
+    if (g_socket_handle <= 0) {
+        socket_connect();
+        return -1;
+    }
+ 
+    char request_buff[512] = {0}; // 构造post数据
+    snprintf(request_buff, sizeof(request_buff), "POST   /v1/device/update_position HTTP/1.1\r\n"
+                        "Host: http://%s:%d\r\n"
+                        "Content-Type: application/json\r\n"
+                        "Connection: keep-alive\r\n"
+                        "Content-Length: %d\r\n"
+                        "\r\n"
+                        "%s\r\n",
+                        g_serverInfo.server_ip, g_serverInfo.server_port,
+                        data_len, data);
+
+    printf("--------SEND:%s LEN:%d---------\r\n",request_buff,strlen(request_buff));
+    printf("lwip_will_send\r\n");
+    err = lwip_send(g_socket_handle, request_buff, strlen(request_buff), 0);   // POST JSON
+    if (err < 0) {
+        lwip_close(g_socket_handle);
+        printf("lwip_send fail %d\r\n", err);
+        return err;
+    }
+    lwip_close(g_socket_handle);
+    return ERR_OK;
+}
+
+
+errcode_t hi3863_recv_wifi_msg(hi3863_wifi_info_t *data, uint16_t data_len)
+{
+    if(data_len < sizeof(hi3863_wifi_info_t)) {
+        osal_printk("hi3863_recv_wifi_msg len failed \r\n");
+        return ERRCODE_FAIL;
+    }
+    hi3863_wifi_info_t wifiInfo = {0};
+    osal_printk("[NV]:wifi=%s,passwd=%s,encrypt=%d\r\n", data->wifi, data->passwd, data->encrypt);
+
+    if (memcpy_s(wifiInfo.wifi, HI3863_OPENVALLEY_WIFI_LEN, 
+                data->wifi, strlen((char *)(data->wifi))) != EOK) {
+        return -1;
+    };
+    if (memcpy_s(wifiInfo.passwd, HI3863_OPENVALLEY_PWD_LEN, 
+                data->passwd, strlen((char *)(data->passwd))) != EOK) {
+        return -1;
+    };
+    wifiInfo.encrypt = data->encrypt;
+
+    gateway63_saveWifiInfo(&wifiInfo);
+    osal_vfree(data);
+    data = NULL;
+
+    return ERRCODE_SUCC;
+}
+
+errcode_t hi3863_recv_server_msg(hi3863_server_info_t *data, uint16_t data_len)
+{
+    if(data_len < sizeof(hi3863_server_info_t) || data == NULL) {
+        osal_printk("hi3863_recv_server_msg len failed \r\n");
+        return ERRCODE_FAIL;
+    }
+    
+    hi3863_server_info_t serverInfo = {0};
+
+    osal_printk("[NV] Old:server_ip=%s,server_port=%d\r\n", data->server_ip, data->server_port);
+    if (memcpy_s(serverInfo.server_ip, HI3863_OPENVALLEY_PWD_LEN, 
+                data->server_ip, strlen((char *)(data->server_ip))) != EOK) {
+        return -1;
+    };
+    serverInfo.server_port = data->server_port;
+
+    gateway63_saveServerInfo(&serverInfo);
+    osal_vfree(data);
+    data = NULL;
+    return ERRCODE_SUCC;
+}
+
+int gateway63_main_task(void *param)
+{
+    uint32_t msg_data_size = sizeof(measure_dis_msg_t);
+    errcode_t ret = ERRCODE_SUCC;
+    UNUSED(param);
+
+    hi3863_msg_queue_init();
+    gateway63_nvConfigRead();
+    if(wifi_connect_init() == 0) {
+        hi3863_msg_queue_send_msg(NULL, 0, HI3863_MSG_E_CONNECT);
+    }
+    printf("will into while(1)!\r\n");
+    // 注册串口接收中断
+    uart_task();
+    // socket_connect();
+    while(1)
+    {
+        memset_s(&g_msg_data, sizeof(measure_dis_msg_t), 0 , sizeof(measure_dis_msg_t));
+        ret = osal_msg_queue_read_copy(g_measure_dis_queue, &g_msg_data, &msg_data_size, OSAL_WAIT_FOREVER);
+        if (ret != OSAL_SUCCESS) {
+            osal_printk("msg queue read copy fail.");
+            if (g_msg_data.data != NULL) {
+                osal_vfree(g_msg_data.data);
+            }
+            continue;
+        }
+        switch (g_msg_data.type)
+        {
+        case HI3863_MSG_E_CONNECT:
+            wifi_connect((char *)(g_wifiInfo.wifi), (char *)(g_wifiInfo.passwd), (uint8_t)g_wifiInfo.encrypt);
+            /* code */
+            break;
+        case HI3863_MSG_E_REPORT:
+            if(g_msg_data.data_len > 0 || g_msg_data.data != NULL) {
+                hi3863_post_to_server((uint8_t *)g_msg_data.data, g_msg_data.data_len);
+                osal_vfree(g_msg_data.data);
+            }
+            break;
+        case HI3863_MSG_E_SAVE_WIFI:
+            hi3863_recv_wifi_msg((hi3863_wifi_info_t *)g_msg_data.data, g_msg_data.data_len);
+            break;
+        case HI3863_MSG_E_SAVE_SERVER:
+            hi3863_recv_server_msg((hi3863_server_info_t *)g_msg_data.data, g_msg_data.data_len);
+            break;
+        default:
+            break;
+        }
+    }
+    return 0;
+}
+
+
 static void gateway63_sample_entry(void)
 {
     osThreadAttr_t attr;
-    attr.name       = "gateway63_sample_task";
+    attr.name       = "gateway63_main_task";
     attr.attr_bits  = 0U;
     attr.cb_mem     = NULL;
     attr.cb_size    = 0U;
     attr.stack_mem  = NULL;
     attr.stack_size = GATEWAY63_TASK_STACK_SIZE;
     attr.priority   = GATEWAY63_TASK_PRIO;
-    if (osThreadNew((osThreadFunc_t)gateway63_sample_task, NULL, &attr) == NULL) {
-        printf("Create gateway63_sample_task fail.\r\n");
+    if (osThreadNew((osThreadFunc_t)gateway63_main_task, NULL, &attr) == NULL) {
+        printf("Create gateway63_main_task fail.\r\n");
     }
-    printf("Create gateway63_sample_task succ.\r\n");
+    printf("Create gateway63_main_task succ.\r\n");
 }
-
-
-
 
 /* Run the gateway63_sample_task. */
 app_run(gateway63_sample_entry);
