@@ -140,8 +140,8 @@ static err_t gateway63_saveWifiInfo(hi3863_wifi_info_t * wifiInfo)
     hi3863_wifi_info_t *read_value = NULL;
 
     osal_printk("[NV]:AT:wifi:%s, passwd:%s, encrypt=%d\r\n", wifiInfo->wifi, wifiInfo->passwd, wifiInfo->encrypt);
-    if(strlen(wifiInfo->wifi) >= HI3863_OPENVALLEY_WIFI_LEN ||
-       strlen(wifiInfo->passwd) >= HI3863_OPENVALLEY_PWD_LEN  ||
+    if(strlen((char *)(wifiInfo->wifi)) >= HI3863_OPENVALLEY_WIFI_LEN ||
+       strlen((char *)(wifiInfo->passwd)) >= HI3863_OPENVALLEY_PWD_LEN  ||
        wifiInfo->encrypt > 1) {
         osal_printk("[ERROR]:gateway63_saveWifiInfo wifiInfo is error %d\r\n", __LINE__);
         return -1;
@@ -167,11 +167,11 @@ static err_t gateway63_saveWifiInfo(hi3863_wifi_info_t * wifiInfo)
                     read_value->passwd, read_value->encrypt);
 
     memset_s(read_value->wifi, HI3863_OPENVALLEY_PWD_LEN, 0, HI3863_OPENVALLEY_PWD_LEN);
-    if (memcpy_s(read_value->wifi, HI3863_OPENVALLEY_PWD_LEN, wifiInfo->wifi, strlen(wifiInfo->wifi)) != EOK) {
+    if (memcpy_s(read_value->wifi, HI3863_OPENVALLEY_PWD_LEN, wifiInfo->wifi, strlen((char *)(wifiInfo->wifi))) != EOK) {
         return -1;
     };
     memset_s(read_value->passwd, HI3863_OPENVALLEY_PWD_LEN, 0, HI3863_OPENVALLEY_PWD_LEN);
-    if (memcpy_s(read_value->passwd, HI3863_OPENVALLEY_PWD_LEN, wifiInfo->passwd, strlen(wifiInfo->passwd)) != EOK) {
+    if (memcpy_s(read_value->passwd, HI3863_OPENVALLEY_PWD_LEN, wifiInfo->passwd, strlen((char *)(wifiInfo->passwd))) != EOK) {
         return -1;
     };
     read_value->encrypt = wifiInfo->encrypt;
@@ -198,7 +198,7 @@ static err_t gateway63_saveServerInfo(hi3863_server_info_t *serverInfo)
     hi3863_server_info_t *read_value = NULL;
 
     osal_printk("[NV]:AT:server_ip:%s,server_port:%d\r\n", serverInfo->server_ip, serverInfo->server_port);
-    if(strlen(serverInfo->server_ip) >= HI3863_OPENVALLEY_WIFI_LEN) {
+    if(strlen((char *)(serverInfo->server_ip)) >= HI3863_OPENVALLEY_WIFI_LEN) {
         osal_printk("[ERROR]:gateway63_saveServerInfo serverInfo is error %d\r\n", __LINE__);
         return -1;
     }
@@ -222,7 +222,7 @@ static err_t gateway63_saveServerInfo(hi3863_server_info_t *serverInfo)
     osal_printk("[NV] Old:server_ip=%s,server_port=%d\r\n", read_value->server_ip, read_value->server_port);
     memset_s(read_value->server_ip, HI3863_OPENVALLEY_PWD_LEN, 0, HI3863_OPENVALLEY_PWD_LEN);
     if (memcpy_s(read_value->server_ip, HI3863_OPENVALLEY_PWD_LEN, 
-                serverInfo->server_ip, strlen(serverInfo->server_ip)) != EOK) {
+                serverInfo->server_ip, strlen((char *)(serverInfo->server_ip))) != EOK) {
         return -1;
     };
     read_value->server_port = serverInfo->server_port;
@@ -428,6 +428,9 @@ static void gateway63_sample_entry(void)
     }
     printf("Create gateway63_sample_task succ.\r\n");
 }
+
+
+
 
 /* Run the gateway63_sample_task. */
 app_run(gateway63_sample_entry);
