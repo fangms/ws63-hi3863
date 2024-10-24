@@ -26,11 +26,15 @@
 #include <lwip/tcp.h>
 #include "lwip/init.h"
 
+#include "nv.h"
+#include "key_id.h"
 #include <cJSON.h>
 #include "uart.h"
 #include "pinctrl.h"
 #include "wifi_linked_info.h"
 #include "tcp_http_dns.h"
+#include "gateway63.h"
+
 // #include "ble_uart_server/ble_uart_server.h"
 #define GATEWAY63_TASK_PRIO                  (osPriority_t)(13)
 #define GATEWAY63_TASK_DURATION_MS           2000
@@ -48,6 +52,196 @@
 static uint8_t g_app_uart_rx_buff[SLE_UART_TRANSFER_SIZE] = { 0 };
 static int IS_READ_DATA_FLAG = 0; // 接收数据中断标志
 int g_socket_handle;
+
+hi3863_wifi_info_t g_wifiInfo = {0};
+hi3863_server_info_t g_serverInfo = {0};
+
+static err_t gateway63_nvConfigRead(void)
+{
+    uint16_t key_len = 0;
+    uint16_t real_len = 0;
+    hi3863_wifi_info_t *wifi_value = NULL;
+    hi3863_server_info_t *server_value = NULL;
+
+    memset_s(&g_wifiInfo, sizeof(hi3863_wifi_info_t), 0 , sizeof(hi3863_wifi_info_t));
+    memset_s(&g_serverInfo, sizeof(hi3863_server_info_t), 0 , sizeof(hi3863_server_info_t));
+
+    key_len = (uint16_t)sizeof(hi3863_wifi_info_t);
+    wifi_value = (hi3863_wifi_info_t *) osal_vmalloc(key_len);
+    if(wifi_value == NULL) {
+        osal_printk("[ERROR]:gateway63_nvConfigRead osal_vmalloc fail %d\r\n", __LINE__);
+        return -1;
+    }
+    memset_s(wifi_value, sizeof(hi3863_wifi_info_t), 0 , sizeof(hi3863_wifi_info_t));
+
+#if defined(CONFIG_MIDDLEWARE_SUPPORT_NV)
+    if (uapi_nv_read(NV_ID_OPENVALLEY_WIFI_INFO, key_len, &real_len, (uint8_t *)wifi_value) != ERRCODE_SUCC) {
+        osal_printk("[ERROR]:gateway63_nvConfigRead uapi_nv_read fail %d\r\n", __LINE__);
+        osal_vfree(wifi_value);
+        wifi_value = NULL;
+        return -1;
+    }
+#endif
+    osal_printk("[NV]: Old:wifi=%s,passwd=%s,encrypt=%d\r\n", wifi_value->wifi, 
+                    wifi_value->passwd, wifi_value->encrypt);
+    if (memcpy_s(g_wifiInfo.wifi, HI3863_OPENVALLEY_PWD_LEN, 
+                wifi_value->wifi, strlen((char *)(wifi_value->wifi))) != EOK) {
+        return -1;
+    };
+    if (memcpy_s(g_wifiInfo.passwd, HI3863_OPENVALLEY_PWD_LEN, 
+                wifi_value->passwd, strlen((char *)(wifi_value->passwd))) != EOK) {
+        return -1;
+    };
+    g_wifiInfo.encrypt = wifi_value->encrypt;
+    
+    if (wifi_value != NULL) {
+        osal_vfree(wifi_value);
+        wifi_value = NULL;
+    }
+
+    real_len = 0;
+    key_len = (uint16_t)sizeof(hi3863_server_info_t);
+    server_value = (hi3863_server_info_t *) osal_vmalloc(key_len);
+    if(server_value == NULL) {
+        osal_printk("[ERROR]:gateway63_nvConfigRead osal_vmalloc fail %d\r\n", __LINE__);
+        return -1;
+    }
+    memset_s(server_value, sizeof(hi3863_server_info_t), 0 , sizeof(hi3863_server_info_t));
+
+#if defined(CONFIG_MIDDLEWARE_SUPPORT_NV)
+    if (uapi_nv_read(NV_ID_OPENVALLEY_SERVER_INFO, key_len, &real_len, (uint8_t *)server_value) != ERRCODE_SUCC) {
+        osal_printk("[ERROR]:gateway63_nvConfigRead uapi_nv_read fail %d\r\n", __LINE__);
+        osal_vfree(server_value);
+        server_value = NULL;
+        return -1;
+    }
+#endif
+
+    osal_printk("[NV]:server_ip=%s,server_port=%d\r\n", server_value->server_ip, server_value->server_port);
+    if (memcpy_s(g_serverInfo.server_ip, HI3863_OPENVALLEY_PWD_LEN, 
+            server_value->server_ip, strlen((char *)(server_value->server_ip))) != EOK) {
+        return -1;
+    };
+    g_serverInfo.server_port = server_value->server_port;
+
+    if (server_value != NULL) {
+        osal_vfree(server_value);
+        server_value = NULL;
+    }
+
+    return ERR_OK;
+}
+
+#if 0
+static err_t gateway63_saveWifiInfo(hi3863_wifi_info_t * wifiInfo)
+{
+    uint16_t key_len = (uint16_t)sizeof(hi3863_wifi_info_t);
+    uint16_t real_len = 0;
+    hi3863_wifi_info_t *read_value = NULL;
+
+    osal_printk("[NV]:AT:wifi:%s, passwd:%s, encrypt=%d\r\n", wifiInfo->wifi, wifiInfo->passwd, wifiInfo->encrypt);
+    if(strlen(wifiInfo->wifi) >= HI3863_OPENVALLEY_WIFI_LEN ||
+       strlen(wifiInfo->passwd) >= HI3863_OPENVALLEY_PWD_LEN  ||
+       wifiInfo->encrypt > 1) {
+        osal_printk("[ERROR]:gateway63_saveWifiInfo wifiInfo is error %d\r\n", __LINE__);
+        return -1;
+    }
+
+    read_value = (hi3863_wifi_info_t *) osal_vmalloc(key_len);
+    if(read_value == NULL) {
+        osal_printk("[ERROR]:gateway63_saveWifiInfo osal_vmalloc fail %d\r\n", __LINE__);
+        return -1;
+    }
+    memset_s(read_value, sizeof(hi3863_wifi_info_t), 0 , sizeof(hi3863_wifi_info_t));
+
+#if defined(CONFIG_MIDDLEWARE_SUPPORT_NV)
+    if (uapi_nv_read(NV_ID_OPENVALLEY_WIFI_INFO, key_len, &real_len, (uint8_t *)read_value) != ERRCODE_SUCC) {
+        osal_printk("[ERROR]:gateway63_saveWifiInfo uapi_nv_read fail %d\r\n", __LINE__);
+        osal_vfree(read_value);
+        read_value = NULL;
+        return -1;
+    }
+#endif
+
+    osal_printk("[NV]: Old:wifi=%s,passwd=%s,encrypt=%d\r\n", read_value->wifi, 
+                    read_value->passwd, read_value->encrypt);
+
+    memset_s(read_value->wifi, HI3863_OPENVALLEY_PWD_LEN, 0, HI3863_OPENVALLEY_PWD_LEN);
+    if (memcpy_s(read_value->wifi, HI3863_OPENVALLEY_PWD_LEN, wifiInfo->wifi, strlen(wifiInfo->wifi)) != EOK) {
+        return -1;
+    };
+    memset_s(read_value->passwd, HI3863_OPENVALLEY_PWD_LEN, 0, HI3863_OPENVALLEY_PWD_LEN);
+    if (memcpy_s(read_value->passwd, HI3863_OPENVALLEY_PWD_LEN, wifiInfo->passwd, strlen(wifiInfo->passwd)) != EOK) {
+        return -1;
+    };
+    read_value->encrypt = wifiInfo->encrypt;
+
+    errcode_t nv_ret_value = uapi_nv_write(NV_ID_OPENVALLEY_WIFI_INFO, (uint8_t *)read_value, key_len);
+    if (nv_ret_value != ERRCODE_SUCC) {
+        osal_printk("[ERROR]write nv fail! %d, ret:%x \r\n", __LINE__, nv_ret_value);
+        osal_vfree(read_value);
+        read_value = NULL;
+        return nv_ret_value;
+    }
+
+    if (read_value != NULL) {
+        osal_vfree(read_value);
+        read_value = NULL;
+    }
+    return ERR_OK;
+}
+
+static err_t gateway63_saveServerInfo(hi3863_server_info_t *serverInfo)
+{
+    uint16_t key_len = (uint16_t)sizeof(hi3863_server_info_t);
+    uint16_t real_len = 0;
+    hi3863_server_info_t *read_value = NULL;
+
+    osal_printk("[NV]:AT:server_ip:%s,server_port:%d\r\n", serverInfo->server_ip, serverInfo->server_port);
+    if(strlen(serverInfo->server_ip) >= HI3863_OPENVALLEY_WIFI_LEN) {
+        osal_printk("[ERROR]:gateway63_saveServerInfo serverInfo is error %d\r\n", __LINE__);
+        return -1;
+    }
+
+    read_value = (hi3863_server_info_t *) osal_vmalloc(key_len);
+    if(read_value == NULL) {
+        osal_printk("[ERROR]:gateway63_saveServerInfo osal_vmalloc fail %d\r\n", __LINE__);
+        return -1;
+    }
+    memset_s(read_value, sizeof(hi3863_server_info_t), 0 , sizeof(hi3863_server_info_t));
+
+#if defined(CONFIG_MIDDLEWARE_SUPPORT_NV)
+    if (uapi_nv_read(NV_ID_OPENVALLEY_SERVER_INFO, key_len, &real_len, (uint8_t *)read_value) != ERRCODE_SUCC) {
+        osal_printk("[ERROR]:gateway63_saveServerInfo uapi_nv_read fail %d\r\n", __LINE__);
+        osal_vfree(read_value);
+        read_value = NULL;
+        return -1;
+    }
+#endif
+
+    osal_printk("[NV] Old:server_ip=%s,server_port=%d\r\n", read_value->server_ip, read_value->server_port);
+    memset_s(read_value->server_ip, HI3863_OPENVALLEY_PWD_LEN, 0, HI3863_OPENVALLEY_PWD_LEN);
+    if (memcpy_s(read_value->server_ip, HI3863_OPENVALLEY_PWD_LEN, 
+                serverInfo->server_ip, strlen(serverInfo->server_ip)) != EOK) {
+        return -1;
+    };
+    read_value->server_port = serverInfo->server_port;
+    
+    errcode_t nv_ret_value = uapi_nv_write(NV_ID_OPENVALLEY_SERVER_INFO, (uint8_t *)read_value, key_len);
+    if (nv_ret_value != ERRCODE_SUCC) {
+        osal_printk("[ERROR]write nv fail! %d, ret:%x \r\n", __LINE__, nv_ret_value);
+        osal_vfree(read_value);
+        read_value = NULL;
+        return nv_ret_value;
+    }
+
+    if (read_value != NULL) {
+        osal_vfree(read_value);
+        read_value = NULL;
+    }
+    return ERR_OK;
+}
+#endif
 
 err_t socket_connect(void)
 {
@@ -192,6 +386,7 @@ int gateway63_sample_task(void *param)
 {
     param = param;
     // 连接Wifi
+    gateway63_nvConfigRead();
     wifi_connect(CONFIG_WIFI_SSID, CONFIG_WIFI_PWD);
     printf("will into while(1)!\r\n");
     // 注册串口接收中断

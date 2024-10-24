@@ -1507,6 +1507,7 @@ at_ret_t set_wifi_info(const openValley_wifi_args_t *args)
         osal_printk("[ERROR]:set_wifi_info osal_vmalloc fail %d\r\n", __LINE__);
         return AT_RET_SYNTAX_ERROR;
     }
+    memset_s(read_value, sizeof(openvalley_wifi_info_t), 0 , sizeof(openvalley_wifi_info_t));
 
 #if defined(CONFIG_MIDDLEWARE_SUPPORT_NV)
     if (uapi_nv_read(NV_ID_OPENVALLEY_WIFI_INFO, key_len, &real_len, (uint8_t *)read_value) != ERRCODE_SUCC) {
@@ -1589,6 +1590,7 @@ at_ret_t set_server_info(const openValley_server_args_t *args)
         osal_printk("[ERROR]:set_server_info osal_vmalloc fail %d\r\n", __LINE__);
         return AT_RET_SYNTAX_ERROR;
     }
+    memset_s(read_value, sizeof(openvalley_server_info_t), 0 , sizeof(openvalley_server_info_t));
 
 #if defined(CONFIG_MIDDLEWARE_SUPPORT_NV)
     if (uapi_nv_read(NV_ID_OPENVALLEY_SERVER_INFO, key_len, &real_len, (uint8_t *)read_value) != ERRCODE_SUCC) {
